@@ -2,7 +2,10 @@
 
 > **AI-Powered Resume Analyzer & Job Matcher Platform**
 
-**Developed by:** Abhishek Kumar Mishra  
+**Developed by:**
+Abhishek Kumar Mishra
+Priyanshu shekhar
+Altamsh mallick
 **Version:** 1.0.0  
 **Tech Stack:** Python · Flask · spaCy · SQLite · HTML/CSS/JS
 
@@ -259,5 +262,4 @@ smtp_port=2525
 MIT License — Free to use and modify.
 
 ---
-
-*Built with ❤️ by **Abhishek Kumar Mishra** | TalentForge © 2024*
+| TalentForge © 2024*
