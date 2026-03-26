@@ -246,6 +246,100 @@ def health_check():
     })
 
 
+@app.route('/admin')
+def admin_dashboard():
+    """Admin dashboard to view all uploads and analyses."""
+    password = request.args.get('key', '')
+    admin_key = os.getenv('ADMIN_KEY', 'talentforge-admin-2024')
+    
+    if password != admin_key:
+        return '''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>TalentForge Admin</title>
+            <style>
+                body { background: #0a0f1e; color: #e2e8f0; font-family: Arial; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+                .box { background: #0f1e35; padding: 40px; border-radius: 12px; text-align: center; border: 1px solid #1e3a5f; }
+                h2 { color: #60a5fa; } input { padding: 10px 16px; border-radius: 6px; border: 1px solid #1e3a5f; background: #0a0f1e; color: #fff; width: 250px; margin: 10px 0; }
+                button { background: #3b82f6; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; }
+            </style>
+        </head>
+        <body>
+            <div class="box">
+                <h2>⚒ TalentForge Admin</h2>
+                <p style="color:#94a3b8;">Enter admin password to continue</p>
+                <form method="GET">
+                    <input type="password" name="key" placeholder="Admin Password" /><br>
+                    <button type="submit">Login</button>
+                </form>
+            </div>
+        </body>
+        </html>
+        ''', 401
+    
+    try:
+        from models.database import get_connection
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, filename, candidate_name, ats_score, ats_tier,
+                   skills_count, top_job_match, email_sent_to, created_at
+            FROM analyses ORDER BY created_at DESC
+        ''')
+        rows = cursor.fetchall()
+        conn.close()
+        analyses = [dict(row) for row in rows]
+    except Exception:
+        analyses = []
+    
+    rows_html = ""
+    for a in analyses:
+        score = a.get('ats_score', 0) or 0
+        score_color = "#10b981" if score >= 80 else "#3b82f6" if score >= 65 else "#f59e0b" if score >= 50 else "#ef4444"
+        email_sent = a.get('email_sent_to') or '<span style="color:#64748b;">—</span>'
+        rows_html += f"""<tr>
+            <td style="color:#64748b;">#{a.get('id')}</td>
+            <td style="color:#e2e8f0;">{a.get('candidate_name', 'Unknown')}</td>
+            <td style="color:#93c5fd;">{a.get('filename', '—')}</td>
+            <td><span style="color:{score_color};font-weight:bold;">{score:.0f}</span></td>
+            <td><span style="background:{score_color}22;color:{score_color};padding:2px 8px;border-radius:4px;font-size:12px;">{a.get('ats_tier','—')}</span></td>
+            <td style="color:#a3e635;">{a.get('skills_count', 0)}</td>
+            <td style="color:#c4b5fd;">{a.get('top_job_match', '—')}</td>
+            <td style="color:#67e8f9;font-size:12px;">{email_sent}</td>
+            <td style="color:#64748b;font-size:12px;">{a.get('created_at','—')}</td>
+        </tr>"""
+    
+    total = len(analyses)
+    avg_score = sum(a.get('ats_score', 0) or 0 for a in analyses) / total if total > 0 else 0
+    emails_sent = sum(1 for a in analyses if a.get('email_sent_to'))
+    
+    return f"""<!DOCTYPE html>
+    <html><head><title>TalentForge Admin</title><meta charset="UTF-8">
+    <style>* {{box-sizing:border-box;margin:0;padding:0;}} body{{background:#0a0f1e;color:#e2e8f0;font-family:'Segoe UI',Arial,sans-serif;}}
+    .header{{background:linear-gradient(135deg,#0f2044,#1a3a6b);padding:24px 32px;display:flex;justify-content:space-between;align-items:center;}}
+    .header h1{{font-size:24px;font-weight:900;color:#fff;}} .header span{{color:#93c5fd;font-size:14px;}}
+    .stats{{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:24px 32px;}}
+    .stat{{background:#0f1e35;border:1px solid #1e3a5f;border-radius:10px;padding:20px;text-align:center;}}
+    .stat .num{{font-size:36px;font-weight:900;}} .stat .label{{color:#64748b;font-size:13px;margin-top:4px;}}
+    .table-wrap{{padding:0 32px 32px;overflow-x:auto;}}
+    table{{width:100%;border-collapse:collapse;background:#0f1e35;border-radius:10px;overflow:hidden;}}
+    th{{background:#1e3a5f;padding:12px 16px;text-align:left;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;}}
+    td{{padding:12px 16px;border-bottom:1px solid #1e3a5f22;font-size:14px;}} tr:hover td{{background:#1e3a5f22;}}
+    .empty{{text-align:center;padding:60px;color:#64748b;}}</style></head>
+    <body>
+    <div class="header"><h1>⚒ TalentForge Admin</h1><span>Total Users: {total} | Abhishek Kumar Mishra</span></div>
+    <div class="stats">
+        <div class="stat"><div class="num" style="color:#60a5fa;">{total}</div><div class="label">Total Resumes Analyzed</div></div>
+        <div class="stat"><div class="num" style="color:#10b981;">{avg_score:.1f}</div><div class="label">Average ATS Score</div></div>
+        <div class="stat"><div class="num" style="color:#a78bfa;">{emails_sent}</div><div class="label">Email Reports Sent</div></div>
+    </div>
+    <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>Candidate</th><th>File</th><th>Score</th><th>Tier</th><th>Skills</th><th>Top Job</th><th>Email Sent To</th><th>Date & Time</th></tr></thead>
+        <tbody>{rows_html if rows_html else '<tr><td colspan="9" class="empty">No analyses yet!</td></tr>'}</tbody>
+    </table></div></body></html>"""
+
+
 @app.errorhandler(413)
 def too_large(e):
     return jsonify({'error': 'File too large. Maximum size is 16MB.'}), 413
